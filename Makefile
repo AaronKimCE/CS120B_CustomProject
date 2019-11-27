@@ -20,11 +20,11 @@ SIMAVR=simavr
 
 # Compiler
 AVR=avr-gcc
-DEBUGFLAGS=-g -Og -std=c11
+DEBUGFLAGS=-g -Og -std=c11 -std=c99
 SIMFLAGS=-D_SIMULATE_
 # Place the section past the end of reachable memory
 MMCUSECTION=-Wl,--undefined=_mmcu,--section-start=.mmcu=910000 
-FLAGS=-Wall -mmcu=$(MMCU) $(MMCUSECTION)
+FLAGS=-Wall -mmcu=$(MMCU) $(MMCUSECTION) -std=c99
 INCLUDES=-I./$(PATHH) -I$(SIMAVRDIR)
 OBJCOPY=avr-objcopy
 OBJFLAGS=-j .text -j .data -O ihex
@@ -92,7 +92,7 @@ $(PATHB)main.hex: $(PATHO)main.elf
 	@$(OBJCOPY) $(OBJFLAGS) $< $@
 
 $(PATHO)main.elf: $(OBJS)
-	@$(AVR) $(DEBUGFLAGS) $(SIMFLAGS) $(FLAGS) $(INCLUDES) -o $@ $<
+	@$(AVR) $(DEBUGFLAGS) $(SIMFLAGS) $(FLAGS) $(INCLUDES) -o $@ $^
 
 $(PATHO)%.o: $(PATHS)%.c
 	@$(AVR) $(DEBUGFLAGS) $(SIMFLAGS) $(FLAGS) $(INCLUDES) -c -o $@ $<

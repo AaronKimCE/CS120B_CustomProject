@@ -4,7 +4,6 @@
 #include <avr/eeprom.h>
 #include "tasks.h"
 #include "pwm.h"
-#include "pwm.c"
 
 unsigned char check, input, cnt;
 unsigned char blinkcnt;
