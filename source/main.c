@@ -30,27 +30,27 @@ int main(void) {
     const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
 
     ParseInput.state = Parse;
-    ParseInput.period = 50;
+    ParseInput.period = 10;
     ParseInput.elapsedTime = ParseInput.period;
     ParseInput.TickFct = &ParseInputTick;
 
     LedOutput.state = GetOutput;
-    LedOutput.period = 50;
+    LedOutput.period = 10;
     LedOutput.elapsedTime = LedOutput.period;
     LedOutput.TickFct = &LedOutputTick;
 
     PWM1.state = Pulse;
-    PWM1.period = 50;
+    PWM1.period = 10;
     PWM1.elapsedTime = PWM1.period;
     PWM1.TickFct = &PWM1Tick;
 	
     Record.state = Wait;
-    Record.period = 50;
+    Record.period = 10;
     Record.elapsedTime = Record.period;
     Record.TickFct = &RecordTick;
 
     Playback.state = WaitP;
-    Playback.period = 50;
+    Playback.period = 10;
     Playback.elapsedTime = Playback.period;
     Playback.TickFct = &PlaybackTick;
 
