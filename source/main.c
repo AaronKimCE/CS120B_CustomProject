@@ -17,16 +17,17 @@
 #include "tasks.h"
 #include "tasks.c"
 #include "pwm.c"
+#include "usart.h"
 
 int main(void) {
     unsigned long GCD = 10;
     DDRA = 0x00; PORTA = 0xFF;
-    DDRB = 0xFC; PORTB = 0x03;
-    DDRC = 0xFF; PORTC = 0x00;
-    DDRD = 0xFF; PORTD = 0x00;
+    DDRB = 0xFF; PORTB = 0x00;
+    DDRC = 0x00; PORTC = 0xFF;
+    DDRD = 0xFE; PORTD = 0x00;
 
-    static task ParseInput, LedOutput, PWM1, Record, Playback;
-    task *tasks[] = {&ParseInput, &LedOutput, &PWM1, &Record, &Playback};
+    static task ParseInput, LedOutput, PWM1, PWM2, Record, Playback;
+    task *tasks[] = {&ParseInput, &LedOutput, &PWM1, &PWM2, &Record, &Playback};
     const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
 
     ParseInput.state = Parse;
@@ -44,6 +45,11 @@ int main(void) {
     PWM1.elapsedTime = PWM1.period;
     PWM1.TickFct = &PWM1Tick;
 	
+    PWM2.state = Pulse;
+    PWM2.period = 10;
+    PWM2.elapsedTime = PWM2.period;
+    PWM2.TickFct = &PWM2Tick;
+
     Record.state = Wait;
     Record.period = 10;
     Record.elapsedTime = Record.period;
@@ -58,6 +64,7 @@ int main(void) {
     TimerOn();
     PWM1_on();
     set_PWM1(0);
+	initUSART();
     
     while (1) {
       for (int i=0; i < numTasks; i++) {

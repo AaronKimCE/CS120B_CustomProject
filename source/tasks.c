@@ -4,6 +4,7 @@
 #include <avr/eeprom.h>
 #include "tasks.h"
 #include "pwm.h"
+#include "usart.h"
 
 unsigned char check, input, cnt;
 unsigned char blinkcnt;
@@ -18,6 +19,7 @@ uint8_t ReadChar;
 enum ParseInputStates{Parse, Sleep} ParseInputState;
 enum LedOutputStates{GetOutput} LedOutputState;
 enum PWM1State{Pulse} PWM1State;
+enum PWM2State{Pulse2} PWM2State;
 enum RecordStates{Wait, Held, BlinkOn, BlinkOff, Record} RecordState;
 enum PlaybackStates{WaitP, HeldP, Playback} PlaybackState;
 
@@ -25,7 +27,7 @@ char TurnBit (char Num) {
 	if (Num == 7) {
 		return 0x80;
 		} else if (Num == 6) {
-		return 0x40;
+		return 0x20;
 		} else if (Num == 5) {
 		return 0x10;
 		} else if (Num == 4) {
@@ -44,8 +46,8 @@ char TurnBit (char Num) {
 char TurnBitP (char Num) {
 	if (Num == 8) {
 		return 0x80;
-		} else if (Num == 7) {
-		return 0x40;
+		} else if (Num == 6) {
+		return 0x20;
 		} else if (Num == 5) {
 		return 0x10;
 		} else if (Num == 4) {
@@ -72,7 +74,7 @@ int TurnNum (char Bit) {
 		return 3;
 		} else if (Bit == 0x10) {
 		return 4;
-		} else if (Bit == 0x40) {
+		} else if (Bit == 0x20) {
 		return 5;
 		} else if (Bit == 0x80) {
 		return 6;
@@ -80,6 +82,7 @@ int TurnNum (char Bit) {
 		return 0;
 	}
 }
+
 
 int ParseInputTick (int ParseInputState) {
 	switch (ParseInputState) {
@@ -103,7 +106,7 @@ int ParseInputTick (int ParseInputState) {
 		hold1 = 0x00;
 		hold2 = 0x00;
 		hold3 = 0x00;
-		check = ~PINA & 0x7F;
+		check = ~PINC & 0x7F;
 		cnt = 1;
 		while (cnt < 8 && hold3 == 0x00) {
 			if (((check & 0x01) != 0) && hold1 == 0x00 && cnt < 8) {
@@ -140,7 +143,7 @@ int LedOutputTick (int LedOutputState) {
 	switch (LedOutputState) {
 		case GetOutput:
 		input = hold1 | hold2 | hold3;
-		PORTD = input;
+		PORTB = input;
 		break;
 	}
 	return LedOutputState;
@@ -164,8 +167,32 @@ int PWM1Tick (int PWM1State) {
 	return PWM1State;
 }
 
+int PWM2Tick (int PWM2State) {
+	switch (PWM2State) {
+		case Pulse2:
+		PWM2State = Pulse2;
+		break;
+	}
+	switch (PWM2State) {
+		case Pulse2:
+		if (hold2 == 0x00) {
+			if (USART_IsSendReady()) {
+			  USART_Send(0x00);
+			  USART_Flush();
+			} 
+		} else {
+			if (USART_IsSendReady()) {
+			  USART_Send(hold2);
+			  USART_Flush();
+			}
+		}
+		break;
+	}
+	return PWM2State;
+}
+
 int RecordTick (int RecordState) {
-	unsigned char recordCheck = ~PINB & 0x02;
+	unsigned char recordCheck = ~PINA & 0x02;
 	switch (RecordState) {
 		case Wait:
 		if (recordCheck && (playbackFlag == 0)) {
@@ -218,21 +245,21 @@ int RecordTick (int RecordState) {
 	switch (RecordState) {
 		case Wait:
 		recordFlag = 0;
-		PORTC = 0x00;
+		PORTD = 0x00;
 		break;
 		case Held:
-		PORTC = 0x00;
+		PORTD = 0x00;
 		break;
 		case BlinkOn:
 		recordFlag = 1;
-		PORTC = 0x01;
+		PORTD = 0x40;
 		break;
 		case BlinkOff:
 		recordFlag = 1;
-		PORTC = 0x00;
+		PORTD = 0x00;
 		break;
 		case Record:
-		PORTC = 0x01;
+		PORTD = 0x40;
 		recordFlag = 1;
 		ReadChar = (hold1 | hold2 | hold3);
 		eeprom_write_byte(&NoteStorage[i], ReadChar);
@@ -244,7 +271,7 @@ int RecordTick (int RecordState) {
 unsigned int PlaybackCnt;
 
 int PlaybackTick (int PlaybackState) {
-	unsigned char PlayCheck = ~PINB & 0x01;
+	unsigned char PlayCheck = ~PINA & 0x01;
 	switch (PlaybackState) {
 		case WaitP:
 		if (PlayCheck && (recordFlag == 0)) {
@@ -278,7 +305,7 @@ int PlaybackTick (int PlaybackState) {
 		case HeldP:
 		break;
 		case Playback:
-		PORTC = 0x02;
+		PORTD = 0x20;
 		playbackFlag = 1;
 		hold1 = 0x00;
 		hold2 = 0x00;

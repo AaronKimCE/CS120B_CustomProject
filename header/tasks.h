@@ -4,6 +4,7 @@
 int ParseInputTick (int ParseInputState);
 int LedOutputTick (int LedOutputState);
 int PWM1Tick (int PWM1State);
+int PWM2Tick (int PWM2State);
 int RecordTick (int RecordState);
 int PlaybackTick (int PlaybackState);
 
