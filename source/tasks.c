@@ -11,17 +11,20 @@ unsigned char blinkcnt;
 unsigned char playbackFlag = 0;
 unsigned char recordFlag = 0;
 unsigned int i;
-unsigned char hold1, hold2, hold3 = 0x00;
+unsigned char hold1, hold2 = 0x00;
+unsigned char adcv = 0;
 const double NoteArray[7] = {493.88, 440.00, 392.00, 349.23, 329.63, 293.66, 261.63};
-uint8_t EEMEM NoteStorage[1000];
+unsigned int duration = 1;
+uint8_t EEMEM NoteStorage[10000];
 uint8_t ReadChar;
 
 enum ParseInputStates{Parse, Sleep} ParseInputState;
 enum LedOutputStates{GetOutput} LedOutputState;
+enum ADCInputStates{GetADC, SleepADC} ADCInputState;
 enum PWM1State{Pulse} PWM1State;
 enum PWM2State{Pulse2} PWM2State;
-enum RecordStates{Wait, Held, BlinkOn, BlinkOff, Record} RecordState;
-enum PlaybackStates{WaitP, HeldP, Playback} PlaybackState;
+enum RecordStates{Wait, Held, BlinkOn, BlinkOff, Record, StopR} RecordState;
+enum PlaybackStates{WaitP, HeldP, Playback, StopP} PlaybackState;
 
 char TurnBit (char Num) {
 	if (Num == 7) {
@@ -83,6 +86,38 @@ int TurnNum (char Bit) {
 	}
 }
 
+double ConvertModifier (char adcinput) {
+	if (adcinput >= 105 && adcinput < 165) {
+		return 0;
+	} else if (adcinput >= 85 && adcinput < 105) {
+		return 4;
+	} else if (adcinput >= 65 && adcinput < 85) {
+		return 9;
+	} else if (adcinput >= 45 && adcinput < 65) {
+		return 14;
+	} else if (adcinput >= 15 && adcinput < 45) {
+		return 17;
+	} else if (adcinput >= 0 && adcinput < 15) {
+		return 21;
+	} else if (adcinput >= 165 && adcinput < 185) {
+		return -4;
+	} else if (adcinput >= 185 && adcinput < 215) {
+		return -9;
+	} else if (adcinput >= 215 && adcinput < 235) {
+		return -14;
+	} else if (adcinput >= 235 && adcinput < 245) {
+		return -17;
+	} else if (adcinput >= 245) {
+		return -21;
+	} else {
+		return 0;
+	}
+}
+
+void ADC_init() {
+	ADCSRA |= (1 << ADEN) | (1 << ADSC) | (1 << ADATE);
+	ADMUX |= (1 << ADLAR) | (1 << MUX1);
+}
 
 int ParseInputTick (int ParseInputState) {
 	switch (ParseInputState) {
@@ -105,10 +140,9 @@ int ParseInputTick (int ParseInputState) {
 		case Parse:
 		hold1 = 0x00;
 		hold2 = 0x00;
-		hold3 = 0x00;
 		check = ~PINC & 0x7F;
 		cnt = 1;
-		while (cnt < 8 && hold3 == 0x00) {
+		while (cnt < 8 && hold2 == 0x00) {
 			if (((check & 0x01) != 0) && hold1 == 0x00 && cnt < 8) {
 				hold1 = TurnBit(cnt);
 				check = check >> 1;
@@ -116,11 +150,6 @@ int ParseInputTick (int ParseInputState) {
 			}
 			if (((check & 0x01) != 0) && hold2 == 0x00 && cnt < 8) {
 				hold2 = TurnBit(cnt);
-				check = check >> 1;
-				cnt++;
-			}
-			if (((check & 0x01) != 0) && hold3 == 0x00 && cnt < 8) {
-				hold3 = TurnBit(cnt);
 				check = check >> 1;
 				cnt++;
 			}
@@ -142,11 +171,38 @@ int LedOutputTick (int LedOutputState) {
 	}
 	switch (LedOutputState) {
 		case GetOutput:
-		input = hold1 | hold2 | hold3;
+		input = hold1 | hold2;
 		PORTB = input;
 		break;
 	}
 	return LedOutputState;
+}
+
+int ADCTick (int ADCInputState) {
+	switch (ADCInputState) {
+		case GetADC:
+		if (recordFlag == 0) {
+			ADCInputState = GetADC;
+		} else {
+			ADCInputState = SleepADC;
+		}
+		break;
+		case SleepADC:
+		if (recordFlag == 0) {
+			ADCInputState = GetADC;
+		} else {
+			ADCInputState = SleepADC;
+		}
+		break;
+	}
+	switch (ADCInputState) {
+		case GetADC:
+		adcv = ADCH;
+		break;
+		case SleepADC:
+		break;
+	}
+	return ADCInputState;
 }
 
 int PWM1Tick (int PWM1State) {
@@ -160,7 +216,7 @@ int PWM1Tick (int PWM1State) {
 		if (hold1 == 0x00) {
 			set_PWM1(0);
 			} else {
-			set_PWM1(NoteArray[TurnNum(hold1)]);
+			set_PWM1(NoteArray[TurnNum(hold1)] + ConvertModifier(adcv));
 		}
 		break;
 	}
@@ -233,14 +289,25 @@ int RecordTick (int RecordState) {
 		}
 		break;
 		case Record:
-		if (i < 1000) {
+		if (i < 10000 && !recordCheck) {
 			RecordState = Record;
 			i++;
-			} else {
+		} else if (recordCheck) {
+			RecordState = StopR;
+			duration = i;
+			i = 0;
+		} else {
 			RecordState = Wait;
+			duration = i;
 			i = 0;
 		}
 		break;
+		case StopR:
+		if (recordCheck) {
+			RecordState = StopR;
+		} else {
+			RecordState = Wait;
+		}
 	}
 	switch (RecordState) {
 		case Wait:
@@ -248,6 +315,7 @@ int RecordTick (int RecordState) {
 		PORTD = 0x00;
 		break;
 		case Held:
+		recordFlag = 1;
 		PORTD = 0x00;
 		break;
 		case BlinkOn:
@@ -261,8 +329,11 @@ int RecordTick (int RecordState) {
 		case Record:
 		PORTD = 0x40;
 		recordFlag = 1;
-		ReadChar = (hold1 | hold2 | hold3);
+		ReadChar = (hold1 | hold2);
 		eeprom_write_byte(&NoteStorage[i], ReadChar);
+		break;
+		case StopR:
+		recordFlag = 1;
 		break;
 	}
 	return RecordState;
@@ -289,12 +360,22 @@ int PlaybackTick (int PlaybackState) {
 		}
 		break;
 		case Playback:
-		if (PlaybackCnt < 1000) {
+		if (PlayCheck && PlaybackCnt > 100) {
+			PlaybackState = StopP;
+			PlaybackCnt = 0;
+		} else if (PlaybackCnt < duration) {
 			PlaybackState = Playback;
 			PlaybackCnt++;
-			} else {
+		} else {
 			PlaybackState = Wait;
 			PlaybackCnt = 0;
+		}
+		break;
+		case StopP:
+		if (PlayCheck) {
+			PlaybackState = StopP;
+		} else {
+			PlaybackState = Wait;
 		}
 		break;
 	}
@@ -303,17 +384,17 @@ int PlaybackTick (int PlaybackState) {
 		playbackFlag = 0;
 		break;
 		case HeldP:
+		playbackFlag = 1;
 		break;
 		case Playback:
 		PORTD = 0x20;
 		playbackFlag = 1;
 		hold1 = 0x00;
 		hold2 = 0x00;
-		hold3 = 0x00;
 		ReadChar = eeprom_read_byte(&NoteStorage[PlaybackCnt]);
 		check = (char)ReadChar;
 		cnt = 1;
-		while (cnt < 9 && hold3 == 0x00) {
+		while (cnt < 9 && hold2 == 0x00) {
 			if (((check & 0x01) != 0) && hold1 == 0x00 && cnt < 9) {
 				hold1 = TurnBitP(cnt);
 				check = check >> 1;
@@ -324,14 +405,12 @@ int PlaybackTick (int PlaybackState) {
 				check = check >> 1;
 				cnt++;
 			}
-			if (((check & 0x01) != 0) && hold3 == 0x00 && cnt < 9) {
-				hold3 = TurnBitP(cnt);
-				check = check >> 1;
-				cnt++;
-			}
 			check = check >> 1;
 			cnt++;
 		}
+		break;
+		case StopP:
+		playbackFlag = 1;
 		break;
 	}
 	return PlaybackState;

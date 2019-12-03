@@ -26,8 +26,8 @@ int main(void) {
     DDRC = 0x00; PORTC = 0xFF;
     DDRD = 0xFE; PORTD = 0x00;
 
-    static task ParseInput, LedOutput, PWM1, PWM2, Record, Playback;
-    task *tasks[] = {&ParseInput, &LedOutput, &PWM1, &PWM2, &Record, &Playback};
+    static task ParseInput, LedOutput, ADCT, PWM1, PWM2, Record, Playback;
+    task *tasks[] = {&ParseInput, &LedOutput, &ADCT, &PWM1, &PWM2, &Record, &Playback};
     const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
 
     ParseInput.state = Parse;
@@ -39,6 +39,11 @@ int main(void) {
     LedOutput.period = 10;
     LedOutput.elapsedTime = LedOutput.period;
     LedOutput.TickFct = &LedOutputTick;
+
+	ADCT.state = GetADC;
+	ADCT.period = 10;
+	ADCT.elapsedTime = ADCT.period;
+	ADCT.TickFct = &ADCTick;
 
     PWM1.state = Pulse;
     PWM1.period = 10;
@@ -65,6 +70,7 @@ int main(void) {
     PWM1_on();
     set_PWM1(0);
 	initUSART();
+	ADC_init();
     
     while (1) {
       for (int i=0; i < numTasks; i++) {
