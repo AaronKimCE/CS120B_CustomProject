@@ -24,7 +24,7 @@ int main(void) {
     DDRA = 0x00; PORTA = 0xFF;
     DDRB = 0xFF; PORTB = 0x00;
     DDRC = 0x00; PORTC = 0xFF;
-    DDRD = 0xFE; PORTD = 0x00;
+    DDRD = 0x7E; PORTD = 0x80;
 
     static task ParseInput, LedOutput, ADCT, PWM1, PWM2, Record, Playback;
     task *tasks[] = {&ParseInput, &LedOutput, &ADCT, &PWM1, &PWM2, &Record, &Playback};

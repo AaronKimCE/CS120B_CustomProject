@@ -14,9 +14,10 @@ unsigned int i;
 unsigned char hold1, hold2 = 0x00;
 unsigned char adcv = 0;
 const double NoteArray[7] = {493.88, 440.00, 392.00, 349.23, 329.63, 293.66, 261.63};
-unsigned int duration = 1;
 uint8_t EEMEM NoteStorage[10000];
 uint8_t ReadChar;
+uint16_t EEMEM duration;
+uint16_t ReadDur;
 
 enum ParseInputStates{Parse, Sleep} ParseInputState;
 enum LedOutputStates{GetOutput} LedOutputState;
@@ -294,11 +295,11 @@ int RecordTick (int RecordState) {
 			i++;
 		} else if (recordCheck) {
 			RecordState = StopR;
-			duration = i;
+			eeprom_write_word(&duration, i);
 			i = 0;
 		} else {
 			RecordState = Wait;
-			duration = i;
+			eeprom_write_word(&duration, i);
 			i = 0;
 		}
 		break;
@@ -340,6 +341,7 @@ int RecordTick (int RecordState) {
 }
 
 unsigned int PlaybackCnt;
+unsigned int length;
 
 int PlaybackTick (int PlaybackState) {
 	unsigned char PlayCheck = ~PINA & 0x01;
@@ -356,6 +358,7 @@ int PlaybackTick (int PlaybackState) {
 			PlaybackState = HeldP;
 			} else {
 			PlaybackState = Playback;
+			ReadDur = eeprom_read_word(&duration);
 			PlaybackCnt = 0;
 		}
 		break;
@@ -363,7 +366,7 @@ int PlaybackTick (int PlaybackState) {
 		if (PlayCheck && PlaybackCnt > 100) {
 			PlaybackState = StopP;
 			PlaybackCnt = 0;
-		} else if (PlaybackCnt < duration) {
+		} else if (PlaybackCnt < ReadDur) {
 			PlaybackState = Playback;
 			PlaybackCnt++;
 		} else {
